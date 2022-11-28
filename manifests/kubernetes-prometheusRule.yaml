@@ -318,33 +318,6 @@ metadata:
   labels:
     app.kubernetes.io/name: kube-prometheus
     app.kubernetes.io/part-of: kube-prometheus
-    prometheus: cadvisor
-    role: alert-rules
-  name: cadvisor-cpu-monitoring-rules
-  namespace: monitoring
-spec:
-  groups:
-  - name: cpu
-    rules:
-    - alert: CPUThrottlingHigh
-      annotations:
-        description: '{{ $value | humanizePercentage }} throttling of CPU in namespace {{ $labels.namespace }} for container {{ $labels.container }} in pod {{ $labels.pod }}.'
-        summary: Processes experience elevated CPU throttling.
-      expr: |
-        sum(increase(container_cpu_cfs_throttled_periods_total{container!="", }[5m])) by (container, pod, namespace)
-          /
-        sum(increase(container_cpu_cfs_periods_total{}[5m])) by (container, pod, namespace)
-          > ( 25 / 100 )
-      for: 15m
-      labels:
-        severity: info
----
-apiVersion: monitoring.coreos.com/v1
-kind: PrometheusRule
-metadata:
-  labels:
-    app.kubernetes.io/name: kube-prometheus
-    app.kubernetes.io/part-of: kube-prometheus
     prometheus: k8s
     role: alert-rules
   name: kubelet-pv-monitoring-rules

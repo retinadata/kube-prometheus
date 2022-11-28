@@ -128,19 +128,41 @@ spec:
         severity: critical
     - alert: NodeNetworkReceiveErrs
       annotations:
-        description: '{{ $labels.instance }} interface {{ $labels.device }} has encountered {{ printf "%.0f" $value }} receive errors in the last two minutes.'
+        description: '{{ $labels.instance }} interface {{ $labels.device }} has encountered
+          {{ printf "%.0f" $value }} receive errors in the last two minutes.'
         summary: Network interface is reporting many receive errors.
       expr: |
-        rate(node_network_receive_errs_total[2m]) / rate(node_network_receive_packets_total[2m]) > 0.01
+        increase(node_network_receive_errs_total[2m]) > 10
       for: 1h
       labels:
         severity: warning
     - alert: NodeNetworkTransmitErrs
       annotations:
-        description: '{{ $labels.instance }} interface {{ $labels.device }} has encountered {{ printf "%.0f" $value }} transmit errors in the last two minutes.'
+        description: '{{ $labels.instance }} interface {{ $labels.device }} has encountered
+          {{ printf "%.0f" $value }} transmit errors in the last two minutes.'
         summary: Network interface is reporting many transmit errors.
       expr: |
-        rate(node_network_transmit_errs_total[2m]) / rate(node_network_transmit_packets_total[2m]) > 0.01
+        increase(node_network_transmit_errs_total[2m]) > 10
+      for: 1h
+      labels:
+        severity: warning
+    - alert: NodeNetworkReceiveDrops
+      annotations:
+        description: '{{ $labels.instance }} interface {{ $labels.device }} has encountered
+          {{ printf "%.0f" $value }} receive drops in the last two minutes.'
+        summary: Network interface is reporting many receive errors.
+      expr: |
+        increase(node_network_receive_drop_total[2m]) > 10
+      for: 1h
+      labels:
+        severity: warning
+    - alert: NodeNetworkTransmitDrops
+      annotations:
+        description: '{{ $labels.instance }} interface {{ $labels.device }} has encountered
+          {{ printf "%.0f" $value }} transmit drops in the last two minutes.'
+        summary: Network interface is reporting many transmit errors.
+      expr: |
+        increase(node_network_transmit_drop_total[2m]) > 10
       for: 1h
       labels:
         severity: warning
@@ -229,6 +251,241 @@ spec:
       for: 15m
       labels:
         severity: critical
+    - alert: NodeNetworkConnectionDown
+      annotations:
+        description: Ethernet connection {{ $labels.device }} on {{ $labels.instance }}
+          is down.
+        summary: A network connection has failed. Check cables or networking equipment.
+      expr: |
+        node_network_up{instance=~".+-cvr-.+",device=~"eno1|eno2|enp.+0"} != 1 or
+        node_network_up{instance=~".+-mon-.+",device=~"eno1|enp216.+"} != 1
+      for: 10m
+      labels:
+        severity: critical
+    - alert: NodeDataConnectionSpeedLow
+      annotations:
+        description: Bonded data connection on {{ $labels.instance }} has {{ $value }}
+          Gbps whereas it should be 20 Gbps.
+        summary: Data connection speed is low. That might mean a lost network connection
+          or configuration error either side of the connection.
+      expr: |
+        node_network_speed_bytes{device="bond0"}*8/1000/1000/1000 != 20
+      for: 10m
+      labels:
+        severity: critical
+    - alert: HardwareSensorNotOptimal
+      annotations:
+        description: Sensor {{ $labels.name }} on {{ $labels.instance }} is in status
+          {{ $value }}.
+        summary: Hardware sensor is not in optimal status. Hardware manuals should
+          be consulted and required action must be taken.
+      expr: |
+        ipmi_sensor_state != 0
+      for: 10m
+      labels:
+        severity: critical
+    - alert: HardwareFanSpeedNotOptimal
+      annotations:
+        description: Fan speed for {{ $labels.name }} on {{ $labels.instance }} is
+          {{ $value }} RPM.
+        summary: Fan speed state is not optimal. This might indicate a hardware fault
+          on fan or a cooling issue.
+      expr: |
+        ipmi_fan_speed_rpm and ipmi_fan_speed_state != 0
+      for: 10m
+      labels:
+        severity: warning
+    - alert: HardwareTemperatureNotOptimal
+      annotations:
+        description: Temperature for {{ $labels.name }} on {{ $labels.instance }} is
+          {{ $value }} C.
+        summary: Temperature is not optimal. This might indicate a cooling issue.
+      expr: |
+        ipmi_temperature_celsius and ipmi_temperature_state != 0
+      for: 10m
+      labels:
+        severity: warning
+    - alert: HardwareVoltageNotOptimal
+      annotations:
+        description: Voltage for {{ $labels.name }} on {{ $labels.instance }} is
+          {{ $value }} V.
+        summary: Voltage is not optimal. This might indicate a hardware fault
+          on power supply.
+      expr: |
+        ipmi_voltage_volts and ipmi_voltage_state != 0
+      for: 10m
+      labels:
+        severity: warning
+    - alert: HardwareTemperatureMissing
+      annotations:
+        description: Temperature {{ $labels.name }} is missing on {{ $value }} instance(s).
+        summary: Component(s) may have hardware problems. Hardware manuals should
+          be consulted and required action must be taken.
+      expr: |
+        count(up{service="ipmi-exporter", instance=~".+cvr.+"})
+        - ignoring(name) group_right
+        count(ipmi_temperature_state{instance=~".+cvr.+"}) by (name) > 0
+      for: 10m
+      labels:
+        severity: warning
+    - alert: HardwareTemperatureMissing
+      annotations:
+        description: Hardware temperature metrics missing on {{ $labels.instance }}.
+        summary: Component(s) may have hardware problems. Hardware manuals should
+          be consulted and required action must be taken.
+      expr: |
+        avg(count(ipmi_temperature_state{instance=~".+cvr.+"}) by (instance))
+        - ignoring(instance) group_right
+        count(ipmi_temperature_state{instance=~".+cvr.+"}) by (instance) > 0
+      for: 10m
+      labels:
+        severity: warning
+    - alert: HardwareTemperatureMissing
+      annotations:
+        description: Temperature {{ $labels.name }} is missing on {{ $value }} instance(s).
+        summary: Component(s) may have hardware problems. Hardware manuals should
+          be consulted and required action must be taken.
+      expr: |
+        count(up{service="ipmi-exporter", instance=~".+mon.+"})
+        - ignoring(name) group_right
+        count(ipmi_temperature_state{instance=~".+mon.+"}) by (name) > 0
+      for: 10m
+      labels:
+        severity: warning
+    - alert: HardwareTemperatureMissing
+      annotations:
+        description: Hardware temperature metrics missing on {{ $labels.instance }}.
+        summary: Component(s) may have hardware problems. Hardware manuals should
+          be consulted and required action must be taken.
+      expr: |
+        avg(count(ipmi_temperature_state{instance=~".+mon.+"}) by (instance))
+        - ignoring(instance) group_right
+        count(ipmi_temperature_state{instance=~".+mon.+"}) by (instance) > 0
+      for: 10m
+      labels:
+        severity: warning
+    - alert: WatchdogStopped
+      annotations:
+        description: BMC Watchdog stopped on {{ $labels.instance }}.
+        summary: Watchdog timer is currently inactive. Ensure bmc-watchdog- services
+          are working properly.
+      expr: |
+        ipmi_bmc_watchdog_timer_state != 1
+      for: 10m
+      labels:
+        severity: warning
+    - alert: WatchdogMisconfigured
+      annotations:
+        description: BMC Watchdog misconfigured on {{ $labels.instance }}.
+        summary: Watchdog configuration is not what it's supposed to be. Ensure
+          bmc-watchdog- services are working properly.
+      expr: |
+        ipmi_bmc_watchdog_initial_countdown_seconds != 600
+        or ipmi_bmc_watchdog_logging_state != 1
+        or ipmi_bmc_watchdog_timeout_action_state{action="Power Cycle"} != 1
+        or ipmi_bmc_watchdog_timer_use_state{name="BIOS FRB2"} != 1
+      for: 10m
+      labels:
+        severity: warning
+    - alert: WatchdogCountdownLow
+      annotations:
+        description: BMC Watchdog timer not resetting on {{ $labels.instance }}.
+        summary: Node is unable to reset the watchdog timer and it will expire in
+          in {{ $value }} seconds.
+      expr: |
+        ipmi_bmc_watchdog_current_countdown_seconds < 480
+      for: 2m
+      labels:
+        severity: warning
+    - alert: RAIDControllerUnhealthy
+      annotations:
+        description: RAID Controller {{ $labels.controller }}
+          on {{ $labels.instance }} is not healthy.
+        summary: RAID Controller is in unhealthy condition. Please consult hardware manuals.
+      expr: |
+        megaraid_healthy != 1
+      for: 10m
+      labels:
+        severity: critical
+    - alert: RAIDControllerFailed
+      annotations:
+        description: RAID Controller {{ $labels.controller }}
+          on {{ $labels.instance }} has failed.
+        summary: RAID Controller has failed. Please consult hardware manuals.
+      expr: |
+        megaraid_failed != 0
+      for: 10m
+      labels:
+        severity: critical
+    - alert: RAIDControllerCannotReachDrive
+      annotations:
+        description: RAID Controller on {{ $labels.instance }} can only reach {{ $value }}/36 drives.
+        summary: This node has a failed drive and it needs to be replaced.
+      expr: |
+        count(megaraid_pd_media_errors) by (instance) < 36
+      for: 10m
+      labels:
+        severity: warning
+    - alert: DriveSlotNotOK
+      annotations:
+        description: SAS Slot {{ $labels.description }}({{ $labels.index}})
+          on {{ $labels.device }} of {{ $labels.instance }} not OK.
+        summary: SAS Drive slot is reported not OK. This might mean drive
+          has failed and needs replacing.
+      expr: |
+        ses_array_device_slot_ok != 1
+      for: 10m
+      labels:
+        severity: critical
+    - alert: DriveSlotFaultReqstd
+      annotations:
+        description: SAS Slot {{ $labels.description }}({{ $labels.index}})
+          on {{ $labels.device }} of {{ $labels.instance }} has RQST FAULT.
+        summary: SAS Drive slot is reported with Fault reqstd. This might
+          mean drive has failed and needs replacing.
+      expr: |
+        ses_array_device_slot_fault_reqstd != 0
+      for: 10m
+      labels:
+        severity: critical
+    - alert: DriveSlotIndicatorLit
+      annotations:
+        description: SAS Slot {{ $labels.description }}({{ $labels.index}})
+          on {{ $labels.device }} of {{ $labels.instance }} has its indicator
+          LED lit.
+        summary: SAS Drive indicator LED is lit. This might mean a fault
+          or an undergoing maintenance.
+      expr: |
+        ses_array_device_slot_ident != 0
+      for: 1m
+      labels:
+        severity: warning
+    - alert: MemoryMissing
+      annotations:
+        description: Instance {{ $labels.instance }} is missing ~ {{ printf "%.2f" $value }}
+          Gi of RAM.
+        summary: Node probably has a faulty memory module. Please consult hardware manuals
+          and replace if necessary.
+      expr: |
+        (max(node_memory_MemTotal_bytes{instance=~".+cvr.+"}) without(instance,pod)
+        - ignoring(instance, pod) group_right
+        node_memory_MemTotal_bytes{instance=~".+cvr.+"}) /1024/1024/1024 > 1
+      for: 10m
+      labels:
+        severity: warning
+    - alert: MemoryMissing
+      annotations:
+        description: Instance {{ $labels.instance }} is missing ~ {{ printf "%.2f" $value }}
+          Gi of RAM.
+        summary: Node probably has a faulty memory module. Please consult hardware manuals
+          and replace if necessary.
+      expr: |
+        (max(node_memory_MemTotal_bytes{instance=~".+mon.+"}) without(instance,pod)
+        - ignoring(instance, pod) group_right
+        node_memory_MemTotal_bytes{instance=~".+mon.+"}) /1024/1024/1024 > 1
+      for: 10m
+      labels:
+        severity: warning
   - name: node-exporter.rules
     rules:
     - expr: |
