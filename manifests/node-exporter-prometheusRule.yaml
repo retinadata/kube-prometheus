@@ -273,6 +273,16 @@ spec:
       for: 10m
       labels:
         severity: critical
+    - alert: NewSELEntryInLast24h
+      annotations:
+        description: BMC on {{ $labels.instance }} added a new {{ $labels.state }} event
+          to SEL in the last 24h.
+        summary: A hardware event happened and it should be checked via IPMI SEL.
+      expr: |
+        ipmi_sel_events_count_by_state - ipmi_sel_events_count_by_state offset 1d > 0
+      for: 1m
+      labels:
+        severity: warning
     - alert: HardwareSensorNotOptimal
       annotations:
         description: Sensor {{ $labels.name }} on {{ $labels.instance }} is in status
@@ -361,6 +371,54 @@ spec:
         avg(count(ipmi_temperature_state{instance=~".+mon.+"}) by (instance))
         - ignoring(instance) group_right
         count(ipmi_temperature_state{instance=~".+mon.+"}) by (instance) > 0
+      for: 10m
+      labels:
+        severity: warning
+    - alert: HardwareFanMissing
+      annotations:
+        description: Fan {{ $labels.name }} is missing on {{ $value }} instance(s).
+        summary: Component(s) may have hardware problems. Hardware manuals should
+          be consulted and required action must be taken.
+      expr: |
+        count(up{service="ipmi-exporter", instance=~".+cvr.+"})
+        - ignoring(name) group_right
+        count(ipmi_fan_speed_state{instance=~".+cvr.+"}) by (name) > 0
+      for: 10m
+      labels:
+        severity: warning
+    - alert: HardwareFanMissing
+      annotations:
+        description: Hardware fan metrics missing on {{ $labels.instance }}.
+        summary: Component(s) may have hardware problems. Hardware manuals should
+          be consulted and required action must be taken.
+      expr: |
+        avg(count(ipmi_fan_speed_state{instance=~".+cvr.+"}) by (instance))
+        - ignoring(instance) group_right
+        count(ipmi_fan_speed_state{instance=~".+cvr.+"}) by (instance) > 0
+      for: 10m
+      labels:
+        severity: warning
+    - alert: HardwareFanMissing
+      annotations:
+        description: Fan {{ $labels.name }} is missing on {{ $value }} instance(s).
+        summary: Component(s) may have hardware problems. Hardware manuals should
+          be consulted and required action must be taken.
+      expr: |
+        count(up{service="ipmi-exporter", instance=~".+mon.+"})
+        - ignoring(name) group_right
+        count(ipmi_fan_speed_state{instance=~".+mon.+"}) by (name) > 0
+      for: 10m
+      labels:
+        severity: warning
+    - alert: HardwareFanMissing
+      annotations:
+        description: Hardware fan metrics missing on {{ $labels.instance }}.
+        summary: Component(s) may have hardware problems. Hardware manuals should
+          be consulted and required action must be taken.
+      expr: |
+        avg(count(ipmi_fan_speed_state{instance=~".+mon.+"}) by (instance))
+        - ignoring(instance) group_right
+        count(ipmi_fan_speed_state{instance=~".+mon.+"}) by (instance) > 0
       for: 10m
       labels:
         severity: warning
@@ -488,6 +546,16 @@ spec:
         severity: warning
   - name: node-exporter.rules
     rules:
+    - expr: |
+        avg without (pod, instance, cpu) (
+          irate(node_cpu_seconds_total{instance=~".+-cvr-[0-9]+"}[5m])
+        )
+      record: mode:node_cpu_seconds:avg_irate5m_cvr
+    - expr: |
+        avg without (pod, instance, cpu) (
+          irate(node_cpu_seconds_total{instance=~".+-mon-[0-9]+"}[5m])
+        )
+      record: mode:node_cpu_seconds:avg_irate5m_mon
     - expr: |
         count without (cpu) (
           count without (mode) (
