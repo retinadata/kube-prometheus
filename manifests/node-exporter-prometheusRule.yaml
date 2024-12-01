@@ -14,6 +14,16 @@ spec:
   groups:
   - name: node-exporter
     rules:
+    - alert: NodeMemoryUtilizationHigh
+      annotations:
+        description: Used memory on {{ $labels.instance }} is {{ printf "%.2f" $value }}%
+        summary: Node is using too much memory and might cause cluster-wide
+          problems. Please check the node for application(s) using excessive memory
+          and take necessary actions. Restarting the application(s) might help.
+      expr: instance:node_memory_utilisation:ratio*100 > 75
+      for: 1h
+      labels:
+        severity: warning
     - alert: NodeFilesystemSpaceFillingUp
       annotations:
         description: Filesystem on {{ $labels.device }} at {{ $labels.instance }} has only {{ printf "%.2f" $value }}% available space left and is filling up.
